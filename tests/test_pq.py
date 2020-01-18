@@ -1,6 +1,6 @@
 import unittest
 
-from pyastar.pq import PriorityQueue
+from pyastar.util.pq import PriorityQueue
 
 
 class TestPriorityQueue(unittest.TestCase):

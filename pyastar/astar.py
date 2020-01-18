@@ -89,7 +89,8 @@ class AStar:
                     dp[neighbor] = node
 
                     # create a new entry containing the necessary information
-                    entry = {'g': neighbor_g, 'f': neighbor_g + self.func_heuristic(neighbor)}
+                    neighbor_h = self.func_heuristic(neighbor)
+                    entry = {'g': neighbor_g, 'h': neighbor_h, 'f': neighbor_g + neighbor_h}
 
                     # and store the new improved entry
                     pq.push(neighbor, entry)
