@@ -1,5 +1,5 @@
 from pyastar.astar import astar_graph
-from pyastar.graph import WeightedGraph
+from pyastar.util.graph import WeightedGraph
 
 G = WeightedGraph()
 
