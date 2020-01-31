@@ -4,39 +4,171 @@ from pyastar.util.pq import PriorityQueue
 class AStar:
 
     def __init__(self,
-                 start,
-                 func_goal,
-                 func_neighbors,
-                 func_distance,
-                 func_heuristic) -> None:
+                 problem,
+                 revisit_if_inconsistent=False,
+                 verbose=False):
 
-        super().__init__()
-
-        self.start = start
-        self.func_goal = func_goal
-        self.func_neighbors = func_neighbors
-        self.func_distance = func_distance
-        self.func_heuristic = func_heuristic
+        self.problem = problem
+        self.revisit_if_inconsistent = revisit_if_inconsistent
+        self.verbose = verbose
 
         # the optimal path to be returned
         self.opt = None
 
+        # the current node that is processed
+        self.current = None
+        self.extended = None
+
         # initialize the open set as custom priority queue (implemented as a set)
         self.pq = PriorityQueue(func_sorted_by=lambda x: x['f'])
-        h = self.func_heuristic(self.start)
-        self.pq.push(self.start, {'g': 0, 'h': h, 'f': h})
 
-        # map that keeps track of the optimal path found by storing the best predecessor
-        self.dp = {}
+        # keep track of all nodes that are already closed - including their g values
+        self.closed = {}
 
-        # keep track of all nodes that are already closed (to never visit a node twice)
-        self.closed = set()
+    def initialize(self):
+        start = self.problem.start
+        g = 0
+        h = self.problem.get_heuristic(start)
+        f = self.problem.get_total(g, h)
+        self.pq.push(start, {'g': g, 'h': h, 'f': f, 'previous': None})
+        return self
 
-    def reconstruct_path(self, goal):
-        ret = [goal]
-        while ret[-1] != self.start:
-            ret.append(self.dp[ret[-1]])
-        return ret[::-1]
+    def pop(self):
+        _open, _closed = self.pq, self.closed
+
+        # initially set the current value to non - to check if something was set or not
+        self.current = None
+
+        # pop the first element - if heuristic is inconsistent we might skip nodes that have be revisited
+        if not self.revisit_if_inconsistent:
+            self.current = _open.pop()
+
+        else:
+            while not _open.empty():
+                node, entry = _open.pop()
+
+                # either take a node if not in closed at all or if the closed not was not better or equally good than it
+                if node not in _closed or entry["g"] < _closed[node]["g"]:
+                    self.current = (node, entry)
+                    break
+
+        return self.current is not None
+
+    def next(self):
+
+        # retrieve the first element - it set to current in this class
+        success = self.pop()
+
+        # if no element could be found to be processed
+        if success:
+
+            # get the current information of the node
+            node, entry = self.current
+
+            # get access to the open and closed set
+            _open, _closed = self.pq, self.closed
+
+            # if the verbose flag is set to true, print some information about the current status
+            if self.verbose:
+                self.info()
+
+            # mark this node to be visited by adding it to the closed set
+            self.closed[node] = entry
+
+            # if the goal has been found - we know it is optimal if the heuristic is admissible
+            if self.problem.is_goal(node):
+                self.opt = self.reconstruct_path()
+                return
+            else:
+                # reset the node that has been extended in the last step
+                self.extended = []
+                for neighbor in self.problem.get_neighbors(node):
+                    is_better, entry = self.is_node_better(neighbor)
+                    if is_better:
+                        self.extended.append((neighbor, entry))
+
+                self.extend()
+
+    def is_node_better(self, neighbor):
+        _current, _open, _closed = self.current, self.pq, self.closed
+        node, g, f = _current[0], _current[1]['g'], _current[1]['f']
+
+        entry = {}
+
+        # the following code snippets decides whether the node should be added to the open set or not
+        if neighbor in _closed:
+
+            # if the heuristic is consistent a node is visited only once - therefore it can not be improved
+            if not self.revisit_if_inconsistent:
+                is_better = False
+
+            # if inconsistent and the flag is activated check whether we have improved compared to a closed node
+            else:
+                entry["g"] = g + self.problem.get_costs(node, neighbor)
+                is_better = entry["g"] < _closed[neighbor]['g']
+
+        # if a node has never been visited yet
+        else:
+            entry["g"] = g + self.problem.get_costs(node, neighbor)
+
+            if not _open.contains(neighbor):
+                is_better = True
+            else:
+                is_better = entry["g"] < _open.get(neighbor)['g']
+
+        return is_better, entry
+
+    def extend(self):
+        _node, _open = self.current[0], self.pq
+
+        # expand the search for all neighbors
+        for neighbor, entry in self.extended:
+
+            # if we have been there - remove it from the priority queue because we have found a better one
+            if _open.contains(neighbor):
+                _open.remove(neighbor)
+
+            # create a new entry containing the necessary information
+            if "h" not in entry:
+                entry["h"] = self.problem.get_heuristic(neighbor)
+            if "f" not in entry:
+                entry["f"] = self.problem.get_total(entry["g"], entry["h"])
+
+            entry["previous"] = _node
+
+            # and store the new improved entry
+            _open.push(neighbor, entry)
+
+    def find(self, return_path_length=True):
+        self.initialize()
+
+        while self.has_next():
+            self.next()
+
+        if self.opt is None:
+            if return_path_length:
+                return None, None
+            else:
+                return None
+        else:
+            if return_path_length:
+                return self.opt
+            else:
+                return self.opt[0]
+
+    def reconstruct_path(self):
+        goal, _ = self.current
+
+        path = [goal]
+        while path[-1] != self.problem.start:
+            path.append(self.closed[path[-1]]["previous"])
+        path = path[::-1]
+
+        costs = 0
+        for k in range(len(path) - 1):
+            costs += self.problem.get_costs(path[k], path[k + 1])
+
+        return tuple(path), costs
 
     def has_next(self):
         return not self.pq.empty() and self.opt is None
@@ -44,75 +176,23 @@ class AStar:
     def get_path(self):
         return self.opt
 
-    def next(self):
+    def info(self):
+        from copy import deepcopy
+        _current, _open, _closed = self.current, deepcopy(self.pq), self.closed
 
-        # pop the first element and get the f and g values
-        node, entry = self.pq.pop()
+        print("CURRENT")
+        print(_current[0], "->", _current[1])
+        print()
 
-        # mark this node to be visited by adding it to the closed set
-        self.closed.add(node)
+        print("OPEN SET")
+        for k in range(min(10, _open.size())):
+            node, entry = _open.pop()
+            print(node, "->", entry)
+        print()
 
-        # if the goal has been found - we know it is optimal if the heuristic is admissible
-        if self.func_goal(node):
-            self.opt = self.reconstruct_path(node)
-            return
-        else:
-            self.extend(node, entry)
+        print("CLOSED SET")
+        for node, entry in _closed.items():
+            print(node, "->", entry)
+        print()
 
-    def extend(self, node, entry):
-        # for easier notation reference pq and dp directly
-        pq, dp = self.pq, self.dp
-
-        # get the f and g values from the entry
-        f, g = entry['f'], entry['g']
-
-        # expand the search for all neighbors
-        for neighbor in self.func_neighbors(node):
-
-            # if the neighbor has not been considered yet
-            if neighbor not in self.closed:
-
-                # g value of the neighbor - distance traveled so far
-                neighbor_g = g + self.func_distance(node, neighbor)
-
-                # current best q found to the neighbor - or infinity if not visited yet
-                best_g = pq.get(neighbor)['g'] if pq.contains(neighbor) else float("inf")
-
-                # if we have found a better solution than before (or never have been there when best_g is infinity)
-                if neighbor_g < best_g:
-
-                    # if we have been there - remove it from the priority queue because we have found a better one
-                    if pq.contains(neighbor):
-                        pq.remove(neighbor)
-
-                    # store the first or new best predecessor of the neighbor
-                    dp[neighbor] = node
-
-                    # create a new entry containing the necessary information
-                    neighbor_h = self.func_heuristic(neighbor)
-                    entry = {'g': neighbor_g, 'h': neighbor_h, 'f': neighbor_g + neighbor_h}
-
-                    # and store the new improved entry
-                    pq.push(neighbor, entry)
-
-    def find(self):
-        while self.has_next():
-            self.next()
-        return self.get_path()
-
-
-def astar(start, func_goal, func_neighbors, func_distance, func_heuristic):
-    return AStar(start, func_goal, func_neighbors, func_distance, func_heuristic).find()
-
-
-def astar_graph(G, start, goal, func_heuristic):
-    def func_neighbors(node):
-        return G.get_neighbors(node)
-
-    def func_distance(node_a, node_b):
-        return G.get_distance(node_a, node_b)
-
-    def func_goal(node):
-        return node == goal
-
-    return astar(start, func_goal, func_neighbors, func_distance, func_heuristic)
+        print("-----------------------------------------------------------------")

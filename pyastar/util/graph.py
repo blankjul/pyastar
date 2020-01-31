@@ -3,11 +3,16 @@ import math
 
 class WeightedGraph:
 
-    def __init__(self, symmetric=True) -> None:
+    def __init__(self,
+                 undirected=True,
+                 ) -> None:
         super().__init__()
         self.nodes = {}
         self.edges = {}
-        self.symmetric = symmetric
+        self.undirected = undirected
+
+    def get_nodes(self):
+        return list(self.nodes.keys())
 
     def add_node(self, *args):
         for node in args:
@@ -22,6 +27,8 @@ class WeightedGraph:
 
     def add_edge(self, i, j, c):
         self.edges[(i, j)] = c
+        if not self.undirected:
+            self.edges[(j, i)] = c
 
     def preprocess(self):
 
@@ -29,7 +36,7 @@ class WeightedGraph:
         for (i, j), c in self.edges.items():
             if i in self.nodes and j in self.nodes:
                 self.nodes[i].append(j)
-                if self.symmetric:
+                if not self.undirected:
                     self.nodes[j].append(i)
             else:
                 raise Exception("Can not an edge to an unknown node!")
@@ -53,3 +60,8 @@ class WeightedGraph:
             return self.edges[(i, j)]
         else:
             return math.inf
+
+    def costs_as_list(self):
+        for node in list(self.edges.keys()):
+            self.edges[node] = [self.edges[node]]
+        return self

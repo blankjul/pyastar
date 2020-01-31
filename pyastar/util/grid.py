@@ -13,7 +13,7 @@ class Grid:
         [self.obstacles.append(coord) for coord in coords]
 
     def to_graph(self):
-        G = WeightedGraph(symmetric=True)
+        G = WeightedGraph(undirected=True)
 
         for i in range(self.width):
             for j in range(self.height):

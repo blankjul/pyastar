@@ -1,4 +1,4 @@
-from pyastar.astar import astar_graph
+from pyastar.interface import astar_graph
 from pyastar.util.grid import Grid
 from pyastar.util.heuristics import manhatten_dist_2d
 
