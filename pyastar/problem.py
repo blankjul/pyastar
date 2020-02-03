@@ -5,12 +5,10 @@ class Problem:
 
     def __init__(self,
                  start,
-                 goal=None,
-                 n_costs=None) -> None:
+                 goal=None) -> None:
         super().__init__()
         self.start = start
         self.goal = goal
-        self.n_costs = n_costs
 
     def is_goal(self, node):
         return node == self.goal
@@ -25,10 +23,3 @@ class Problem:
 
     def get_heuristic(self, node):
         return 0
-
-    def get_total(self, g, h):
-        f = g
-        if h is not None:
-            f += h
-        return f
-

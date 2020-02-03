@@ -6,7 +6,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 testmodules = [
-    'tests.test_pq'
+    'tests.test_pq',
+    'tests.test_astar',
+    'tests.test_maze'
 ]
 
 suite = unittest.TestSuite()

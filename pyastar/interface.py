@@ -24,21 +24,19 @@ class GraphProblem(Problem):
         if (node_a, node_b) in self.graph.edges:
             return self.graph.get_distance(node_a, node_b)
         else:
-            if self.n_costs is None:
-                return float("inf")
-            else:
-                return [float("inf") for _ in range(self.n_costs)]
+            return float("inf")
 
     def get_heuristic(self, node):
         if self.func_heuristic is None:
-            if self.n_costs is None:
-                return 0.0
-            else:
-                return [0.0 for _ in range(self.n_costs)]
+            return 0.0
         else:
             return self.func_heuristic(node)
 
 
 def astar_graph(graph, start, goal, func_heuristic=None, **kwargs):
     problem = GraphProblem(graph, start, goal, func_heuristic=func_heuristic)
+    return AStar(problem, **kwargs).find()
+
+
+def astar(problem, **kwargs):
     return AStar(problem, **kwargs).find()
