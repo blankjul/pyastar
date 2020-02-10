@@ -33,6 +33,7 @@ def heuristic_sample_graph(node):
     return D[node]
 
 
-G = create_sample_graph()
-ret = astar_graph(G, "s", "g", heuristic_sample_graph)
-print("Shortest Path:", ret)
+if __name__ == '__main__':
+    G = create_sample_graph()
+    ret = astar_graph(G, "s", "g", heuristic_sample_graph)
+    print("Shortest Path:", ret)

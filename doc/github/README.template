@@ -37,7 +37,7 @@ Graph
 
 .. code:: python
 
-    {% macro someop() %}{% include "pyastar/examples/example_graph.py" %}{% endmacro %}
+    {% macro someop() %}{% include "pyastar/usage/usage_graph.py" %}{% endmacro %}
     {{ someop()|indent }}
 
 
@@ -46,7 +46,7 @@ Grid
 
 .. code:: python
 
-    {% macro someop() %}{% include "pyastar/examples/example_grid.py" %}{% endmacro %}
+    {% macro someop() %}{% include "pyastar/usage/usage_grid.py" %}{% endmacro %}
     {{ someop()|indent }}
 
 

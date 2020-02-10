@@ -17,22 +17,30 @@ class Node:
         return self.problem.get_neighbors(self.key)
 
     def calc_h(self):
-        self.h = self.problem.get_heuristic(self.key)
-        return self.h
+        if self.h is None:
+            self.h = self.problem.get_heuristic(self.key)
+            return self.h
 
     def calc_g(self):
-        if self.prev is None:
-            self.g = 0.0
-        else:
-            self.g = self.prev.g + self.problem.get_costs(self.prev.key, self.key)
-        return self.g
+        if self.g is None:
+            if self.prev is None:
+                self.g = 0.0
+            else:
+                self.g = self.prev.g + self.problem.get_costs(self.prev.key, self.key)
+            return self.g
 
     def calc_f(self):
-        f = self.g
-        if self.h is not None:
-            f += self.h
-        self.f = f
-        return self.f
+        if self.f is None:
+            f = self.g
+            if self.h is not None:
+                f += self.h
+            self.f = f
+            return self.f
+
+    def calc_g_h_f(self):
+        self.calc_g()
+        self.calc_h()
+        self.calc_f()
 
     def is_goal(self):
         return self.problem.is_goal(self.key)

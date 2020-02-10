@@ -1,8 +1,7 @@
-from pyastar.interface import astar_graph
 from pyastar.util.graph import WeightedGraph
 
 
-def create_graph_with_heuristic():
+def create_graph_with_inconsistent_heuristic():
     G = WeightedGraph(undirected=True)
     G.add_node("1", "2", "3", "4")
     G.add_edge("1", "2", 2)
@@ -23,8 +22,3 @@ def create_graph_with_heuristic():
 
     return G, heuristic
 
-
-G, heuristic = create_graph_with_heuristic()
-
-ret = astar_graph(G, "1", "4", heuristic, revisit_if_inconsistent=True, verbose=True)
-print("Shortest Path:", ret)

@@ -9,7 +9,7 @@ from ttictoc import TicToc
 class TestAStarOnMaze(unittest.TestCase):
 
     def test_maze(self):
-        size = 40
+        size = 20
         random.seed(1)
         m = make_maze(size, size)
         w = len(m.split('\n')[0])

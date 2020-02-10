@@ -1,13 +1,15 @@
 from pyastar.problem import Problem
 from pyastar.util.node import NodeFactory
-from pyastar.util.pq import PriorityQueue
+from pyastar.util.pq import PriorityQueueSet
 
 
 class AStar:
 
     def __init__(self,
                  problem,
-                 revisit_if_inconsistent=False,
+                 heuristic_is_inconsistent=False,
+                 open_set_max_size=None,
+                 open_set_truncate_size=None,
                  verbose=False,
                  ):
 
@@ -16,8 +18,6 @@ class AStar:
             self.factory = NodeFactory(problem)
         else:
             self.factory = problem
-
-        self.revisit_if_inconsistent = revisit_if_inconsistent
 
         # whether printout in each iteration is desired
         self.verbose = verbose
@@ -28,14 +28,21 @@ class AStar:
         # the current node that is processed
         self.node = None
 
-        # all nodes that have been added during the last next call
-        self.added = None
-
         # initialize the open set as custom priority queue (implemented as a set)
-        self.pq = PriorityQueue()
+        self.open_set = PriorityQueueSet()
 
-        # keep track of all nodes that are already closed - including their g values
-        self.closed = {}
+        # the maximum size of the open set - if it is not None what is the size it should be truncated to
+        self.open_set_max_size = open_set_max_size
+        self.open_set_truncate_size = open_set_truncate_size
+
+        # keep track of all nodes that are already closed
+        self.closed_set = {}
+
+        # assuming the heuristic is inconsistent we change the behavior slightly
+        self.heuristic_is_inconsistent = heuristic_is_inconsistent
+        if self.heuristic_is_inconsistent:
+            self.pop = self.pop_if_inconsistent
+            self.skip = self.skip_if_inconsistent
 
     def find(self, **kwargs):
         self.initialize()
@@ -44,64 +51,67 @@ class AStar:
         return self.result(**kwargs)
 
     def initialize(self):
-        node = self.factory.create()
-        node.calc_g()
-        node.calc_h()
-        node.calc_f()
-        self.pq.push(node.key, node.f, node)
+        self.add(self.factory.create())
         return self
 
     def next(self):
+        # retrieve the first node and remove it
+        self.pop()
 
-        # if an element could be popped and is set to current
-        if self.pop():
-
-            # get the current information of the key
-            node = self.node
-
-            # get access to the open and closed set
-            _open, _closed = self.pq, self.closed
+        # if pop was successful
+        if self.node is not None:
 
             # if the verbose flag is set to true, print some information about the current status
             if self.verbose:
                 self.info()
 
-            # mark this key to be visited by adding it to the closed set
-            self.closed[node.key] = node
+            # actually process the node
+            self.process()
 
-            # if the goal has been found - we know it is optimal if the heuristic is admissible
-            if node.is_goal():
-                self.goal_found()
-            else:
-                # reset the key that has been extended in the last step
-                self.added = []
+            # does the truncation of the open queue if it is enabled - otherwise nothing happens
+            self.truncate_if_necessary()
 
-                for neighbor in node.get_neighbors():
-                    neighbor = self.factory.create(neighbor)
-                    neighbor.set_previous(node)
-                    is_better = self.is_node_better(neighbor)
+    def process(self):
+        # get access to the current node directly
+        node = self.node
 
-                    if is_better:
-                        self.add(neighbor)
-                        self.added.append(neighbor)
+        # if the verbose flag is set to true, print some information about the current status
+        if self.verbose:
+            self.info()
 
-    def add(self, neighbor):
-        _node, _open = self.node, self.pq
+        # mark this key to be visited by adding it to the closed set
+        self.closed_set[node.key] = node
+
+        # if the goal has been found - we know it is optimal if the heuristic is admissible
+        if node.is_goal():
+            self.goal_found()
+        else:
+
+            for neighbor in node.get_neighbors():
+
+                neighbor = self.factory.create(neighbor)
+                neighbor.set_previous(node)
+
+                # if the node is not supposed to be skipped
+                if not self.skip(neighbor):
+                    self.add(neighbor)
+
+    def add(self, node):
 
         # if we have been there - remove it from the priority queue because we have found a better one
-        if _open.contains(neighbor.key):
-            _open.remove(neighbor.key)
+        self.open_set.remove(node.key)
 
         # create a new entry containing the necessary information
-        neighbor.calc_h()
-        neighbor.calc_f()
+        node.calc_g_h_f()
 
-        # and store the new improved entry
-        _open.push(neighbor.key, neighbor.f, neighbor)
+        # finally add to the open set
+        self.open_set.push(node.key, node.f, node)
+
+        return True
 
     def has_next(self):
         # if there are no nodes to process the algorithm always terminates
-        if self.pq.empty():
+        if self.open_set.empty():
             return False
         else:
             return self.opt is None
@@ -110,58 +120,66 @@ class AStar:
         self.opt = {"path": reconstruct_path(self.node), "node": self.node, "costs": self.node.g}
 
     def pop(self):
-        _open, _closed = self.pq, self.closed
+        self.node = self.open_set.pop()
 
-        # initially set the current value to non - to check if something was set or not
+    def truncate_if_necessary(self):
+        if self.open_set_max_size is not None and self.open_set.size() > self.open_set_max_size:
+            if self.open_set_truncate_size is None:
+                raise Exception("Please set open_set_truncate_size if you have enabled a maximum size!")
+            else:
+                return self.truncate()
+
+    def truncate(self):
+        if self.open_set_max_size is not None and self.open_set.size() > self.open_set_max_size:
+            _node = self.node
+
+            pq = PriorityQueueSet()
+            while self.open_set.size() > 0 and pq.size() < self.open_set_truncate_size:
+                self.pop()
+                n = self.node
+                pq.push(n.key, n.f, n)
+
+            self.open_set = pq
+            self.node = _node
+
+    def skip(self, node):
+        if node.key in self.closed_set:
+            return True
+        else:
+            if not self.open_set.contains(node.key):
+                return False
+            else:
+                node.calc_g()
+                node_in_open_set = self.open_set.get(node.key)
+                return node_in_open_set.g <= node.g
+
+    def skip_if_inconsistent(self, node):
+        if node.key in self.closed_set:
+            node.calc_g()
+            node_in_closed_set = self.closed_set[node.key]
+            return node_in_closed_set.g <= node.g
+        else:
+            if not self.open_set.contains(node.key):
+                return False
+            else:
+                node.calc_g()
+                node_in_open_set = self.open_set.get(node.key)
+                return node_in_open_set.g <= node.g
+
+    def pop_if_inconsistent(self):
         self.node = None
-
-        # pop the first element - if heuristic is inconsistent we might skip nodes that have be revisited
-        if not self.revisit_if_inconsistent:
-            self.node = _open.pop(return_key=False, return_value=False)
-
-        else:
-            while not _open.empty():
-                node = _open.pop(return_key=False, return_value=False)
-
-                # either take a node if not in closed at all or if the closed not was not better or equally good than it
-                if node not in _closed or node.g < _closed[node].g:
-                    self.node = node
-                    break
-
-        return self.node is not None
-
-    def is_node_better(self, neighbor):
-        prev, _open, _closed = self.node, self.pq, self.closed
-
-        # the following code snippets decides whether the node should be added to the open set or not
-        if neighbor.key in _closed:
-
-            # if the heuristic is consistent a node is visited only once - therefore it can not be improved
-            if not self.revisit_if_inconsistent:
-                is_better = False
-
-            # if inconsistent and the flag is activated check whether we have improved compared to a closed node
-            else:
-                neighbor.calc_g(prev)
-                is_better = neighbor.g < _closed[neighbor.key].g
-
-        # if a node has never been visited yet
-        else:
-            neighbor.calc_g()
-
-            if not _open.contains(neighbor.key):
-                is_better = True
-            else:
-                is_better = neighbor.g < _open.get(neighbor.key).g
-
-        return is_better
+        while not self.open_set.empty():
+            node = self.open_set.pop()
+            if not self.skip_if_inconsistent(node):
+                self.node = node
+                break
 
     def result(self, **kwargs):
         return extract(self.opt, **kwargs)
 
     def info(self):
         from copy import deepcopy
-        _node, _open = self.node, deepcopy(self.pq)
+        _node, _open = self.node, deepcopy(self.open_set)
 
         print("CURRENT")
         print(_node.key, "->", _node.__dict__)
@@ -172,7 +190,6 @@ class AStar:
             entry = _open.pop()
             print(entry.key, "->", entry.__dict__)
         print()
-
 
         print("-----------------------------------------------------------------")
 
