@@ -2,8 +2,8 @@ import random
 import unittest
 
 from pyastar.astar import AStar
-from pyastar.examples.example_graph import create_sample_graph, heuristic_sample_graph
 from pyastar.interface import GraphProblem, astar_graph
+from pyastar.usage.usage_graph import create_sample_graph, heuristic_sample_graph
 from pyastar.util.factory import create_layered_graph
 from tests.resources.graph_inconsistent import create_graph_with_inconsistent_heuristic
 

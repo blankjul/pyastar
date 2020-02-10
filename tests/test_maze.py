@@ -22,12 +22,12 @@ class TestAStarOnMaze(unittest.TestCase):
         t.tic()
         _path = list(MazeSolver(m).astar(start, goal))
         t.toc()
-        print("Github", t.elapsed)
+        # print("Github", t.elapsed)
 
         t.tic()
         path, length = astar(MazeProblem(m, start, goal))
         t.toc()
-        print("pyastar", t.elapsed)
+        # print("pyastar", t.elapsed)
 
         # self.assertEqual(len(_path), len(path))
 
